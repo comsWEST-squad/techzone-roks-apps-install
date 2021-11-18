@@ -1,0 +1,15 @@
+apiVersion: discovery.watson.ibm.com/v1
+kind: WatsonDiscovery
+metadata:
+  annotations:
+    oppy.ibm.com/disable-rollback: 'true'
+  name: wd     # This is the recommended name, but you can change it
+  namespace: cpd-instance     # Replace with the project where you will install Watson Discovery
+spec:
+  license:
+    accept: true
+  version: 4.0.2
+  shared: 
+    storageClassName: ibmc-block-gold     # See the guidance in "Information you need to complete this task"
+  watsonGateway:
+    version: main

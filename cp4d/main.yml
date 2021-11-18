@@ -1,0 +1,185 @@
+---
+  - name: "Cloud Pak for Data Install on ROKS"
+    hosts: localhost
+    connection: local 
+    vars_files:
+      - ../vars.yml
+    vars:
+      encoded_entitlement_key: ""    
+
+    tasks:
+    - name: Start the installation for CP4D
+      debug: var=ansible_date_time.iso8601 
+    
+    - set_fact:
+       encoded_entitlement_key: "cp:{{entitlement_key}}" 
+
+    - set_fact:
+       encoded_entitlement_key: "{{encoded_entitlement_key |b64encode }}"     
+    - debug: var=encoded_entitlement_key
+
+
+    - name: Prepare patching pull secret in namespace - openshift-config
+      template:          
+        src: k8s/.dockerconfigjson.j2   
+        dest: k8s/.dockerconfigjson  
+
+    - name: Prepare patching pull secret in namespace - openshift-config
+      template:          
+        src: k8s/patch-pull-secret.yml.j2   
+        dest: k8s/patch-pull-secret.yml       
+     
+    - name: Login
+      community.kubernetes.k8s_info:
+        host: "{{k8s_host}}"
+        api_key: "{{k8s_api_token}}"  
+        kind: Namespace     
+      register: namespace_list
+
+    - debug: var=namespace_list.resources[0].metadata.name
+
+    - name: Create a k8s namespace/openshift project - ibm-common-services
+      community.kubernetes.k8s:
+        host: "{{k8s_host}}"
+        api_key: "{{k8s_api_token}}"        
+        name: ibm-common-services
+        kind: Namespace
+        state: present 
+      register: output
+
+    - debug: var=output
+
+    - name: Create a k8s namespace/openshift project - icpd-instance
+      community.kubernetes.k8s:
+        host: "{{k8s_host}}"
+        api_key: "{{k8s_api_token}}"        
+        name: cpd-instance
+        kind: Namespace
+        state: present  
+
+
+    - name: Create the OperatorGroup for Foundational Services
+      community.kubernetes.k8s:
+        host: "{{k8s_host}}"
+        api_key: "{{k8s_api_token}}"   
+        state: present      
+        src: k8s/operator-group.yml 
+        
+
+
+    - name: Patch pull secret in namespace - openshift-config
+      community.kubernetes.k8s: 
+        host: "{{k8s_host}}"
+        api_key: "{{k8s_api_token}}"           
+        state: present  
+        src: k8s/patch-pull-secret.yml    
+
+    - name: Create catalog source for the Cloud Pak for Data
+      community.kubernetes.k8s:  
+        host: "{{k8s_host}}"
+        api_key: "{{k8s_api_token}}"          
+        state: present  
+        src: k8s/catalog-srouce-cp4d.yml   
+
+    - name: Create catalog source for DB2U
+      community.kubernetes.k8s: 
+        host: "{{k8s_host}}"
+        api_key: "{{k8s_api_token}}"           
+        state: present  
+        src: k8s/catalog-srouce-db2u.yml  
+
+    - name: Create operator Subscription for Cloud Pak for Data
+      community.kubernetes.k8s: 
+        host: "{{k8s_host}}"
+        api_key: "{{k8s_api_token}}"           
+        state: present  
+        src: k8s/operator-sub-cp4d.yml     
+
+    - name: Pause for 40 seconds
+      pause:
+        seconds: 40         
+
+    - name: Wait until the operator is installed
+      community.kubernetes.k8s_info:    
+        host: "{{k8s_host}}"
+        api_key: "{{k8s_api_token}}"        
+        api_version: operators.coreos.com/v1alpha1
+        kind: ClusterServiceVersion  
+        namespace: ibm-common-services 
+        name: cpd-platform-operator.v2.0.4
+        field_selectors:
+          - status.phase=Succeeded
+        wait: no
+      register: info                       
+      until: info.resources|length > 0
+      retries: 20
+      delay: 5
+
+    - name: Pause for 30 seconds
+      pause:
+        seconds: 30  
+
+
+    - name: Wait until the deployment is updated
+      community.kubernetes.k8s_info:  
+        host: "{{k8s_host}}"
+        api_key: "{{k8s_api_token}}"        
+        api_version: apps/v1  
+        kind: Deployment
+        namespace: ibm-common-services 
+        label_selectors:
+          - olm.owner=cpd-platform-operator.v2.0.4
+      register: info                       
+      until: info.resources|length > 0  and info.resources[0].status is defined and info.resources[0].status.availableReplicas is defined and info.resources[0].status.availableReplicas == 1
+      retries: 10
+      delay: 5    
+
+
+    - name: Pause for 30 seconds
+      pause:
+        seconds: 30  
+
+    - name: Patch NameScope - common-serivce
+      community.kubernetes.k8s:  
+        host: "{{k8s_host}}"
+        api_key: "{{k8s_api_token}}"          
+        state: present  
+        src: k8s/patch-name-scope.yml    
+
+
+    - name: Create Cloud Pak for Data Operator Request
+      community.kubernetes.k8s:
+        host: "{{k8s_host}}"
+        api_key: "{{k8s_api_token}}"        
+        api_version: operator.ibm.com/v1alpha1
+        kind: OperandRequest
+        name: empty-request   
+        namespace: cpd-instance     
+        state: present 
+
+    - name: Cloud Pak for Data Custome Resource for Ibmcpd
+      community.kubernetes.k8s:  
+        host: "{{k8s_host}}"
+        api_key: "{{k8s_api_token}}"          
+        state: present  
+        src: k8s/ibmcpd-custom-resource.yml 
+
+    - name: Wait until the ZenService is ready
+      community.kubernetes.k8s_info:  
+        host: "{{k8s_host}}"
+        api_key: "{{k8s_api_token}}"        
+        kind: ZenService
+        name: lite-cr
+        namespace: cpd-instance 
+      register: info                       
+      until: info.resources|length > 0 and info.resources[0].status is defined and info.resources[0].status.zenStatus is defined and info.resources[0].status.zenStatus == "Completed"
+      retries: 200
+      delay: 10    
+      
+    - debug:
+        msg: 
+          - "The login URL: {{info.resources[0].status.url}}"
+
+
+    - name: Finshed the installation for CP4D
+      debug: var=ansible_date_time.iso8601  

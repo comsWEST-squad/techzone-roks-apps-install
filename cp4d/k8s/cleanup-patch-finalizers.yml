@@ -1,0 +1,82 @@
+---
+apiVersion: operator.ibm.com/v1alpha1  
+kind: OperandRequest
+metadata:
+  name: empty-request
+  namespace: cpd-instance
+  finalizers:  
+
+---
+apiVersion: operator.ibm.com/v1alpha1  
+kind: OperandRequest
+metadata:
+  name: cert-manager
+  namespace: cpd-instance
+  finalizers:  
+
+---
+apiVersion: operator.ibm.com/v1alpha1  
+kind: OperandRequest
+metadata:
+  name: cpd-instance-cert-mgr-dep
+  namespace: cpd-instance
+  finalizers:    
+
+---
+apiVersion: operator.ibm.com/v1alpha1  
+kind: OperandRequest
+metadata:
+  name: zen-service
+  namespace: cpd-instance
+  finalizers:    
+
+
+---
+apiVersion: operator.ibm.com/v1alpha1  
+kind: OperandRequest
+metadata:
+  name: cert-manager
+  namespace: ibm-common-services
+  finalizers: 
+
+---
+apiVersion: operator.ibm.com/v1alpha1  
+kind: OperandRequest
+metadata:
+  name: zen-service
+  namespace: ibm-common-services
+  finalizers:      
+
+---
+apiVersion: operator.ibm.com/v1
+kind: NamespaceScope
+metadata:
+  name: common-service
+  namespace: ibm-common-services
+  finalizers:
+
+---
+apiVersion: operator.ibm.com/v1
+kind: NamespaceScope
+metadata:
+  name: nss-managedby-odlm
+  namespace: ibm-common-services
+  finalizers:  
+
+---
+apiVersion: operator.ibm.com/v1
+kind: NamespaceScope
+metadata:
+  name: nss-odlm-scope
+  namespace: ibm-common-services
+  finalizers:   
+
+---
+apiVersion: operator.ibm.com/v1
+kind: NamespaceScope
+metadata:
+  name: odlm-scope-managedby-odlm
+  namespace: ibm-common-services
+  finalizers:   
+
+  

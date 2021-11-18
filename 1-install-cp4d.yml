@@ -1,0 +1,3 @@
+---
+  - name: include cp4d main playbook 
+    import_playbook: cp4d/main.yml

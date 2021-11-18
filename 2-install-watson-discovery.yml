@@ -1,0 +1,3 @@
+---
+  - name: include Watson Discovery main playbook 
+    import_playbook: watson-discovery/main.yml

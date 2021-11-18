@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: NamespaceScope
+metadata:
+  name: common-service
+  namespace: ibm-common-services
+spec:
+  csvInjector:
+    enable: true

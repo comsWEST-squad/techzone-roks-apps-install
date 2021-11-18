@@ -1,0 +1,128 @@
+---
+  - name: "Watson Discovery Installation"
+    hosts: localhost
+    connection: local 
+    vars:
+      OFFLINEDIR: ~/tmp/cpdoffline
+    vars_files:
+      - ../vars.yml    
+    tasks:
+
+    - name: Start the installation for Watson Discovery
+      debug: var=ansible_date_time     
+
+    - name: Look up the secret
+      community.kubernetes.k8s_info:  
+        host: "{{k8s_host}}"
+        api_key: "{{k8s_api_token}}"        
+        kind: Secret
+        namespace: cpd-instance 
+        name: zen-admin-sa-dockercfg-
+
+      register: info     
+
+    - debug: var=info 
+
+
+
+    - name: Patch Pull Secret
+      community.kubernetes.k8s:  
+        host: "{{k8s_host}}"
+        api_key: "{{k8s_api_token}}"          
+        state: present  
+        src: k8s/patch-pull-secret.yml    
+
+    - meta: end_play    
+    
+    - name: Create operator Subscription for Watson Discovery
+      community.kubernetes.k8s:  
+        host: "{{k8s_host}}"
+        api_key: "{{k8s_api_token}}"          
+        state: present  
+        src: k8s/discovery-operator-sub.yml      
+
+    - name: Wait until the Watson Discovery operator is installed
+      community.kubernetes.k8s_info:    
+        host: "{{k8s_host}}"
+        api_key: "{{k8s_api_token}}"        
+        api_version: operators.coreos.com/v1alpha1
+        kind: ClusterServiceVersion  
+        namespace: ibm-common-services 
+        name: ibm-watson-discovery-operator.v4.0.2
+        field_selectors:
+          - status.phase=Succeeded
+        wait: no
+      register: info                       
+      until: info.resources|length > 0
+      retries: 30
+      delay: 5 
+
+    - name: Wait until the deployment is updated
+      community.kubernetes.k8s_info:  
+        host: "{{k8s_host}}"
+        api_key: "{{k8s_api_token}}"        
+        api_version: apps/v1  
+        kind: Deployment
+        namespace: ibm-common-services 
+        label_selectors:
+          - olm.owner=ibm-watson-discovery-operator.v4.0.2
+      register: info                       
+      until: info.resources|length > 0 and info.resources[0].status is defined and info.resources[0].status.availableReplicas is defined and info.resources[0].status.availableReplicas == 1
+      retries: 200
+      delay: 5   
+
+    - name: Wait the Model Train operator  is installed
+      community.kubernetes.k8s_info:    
+        host: "{{k8s_host}}"
+        api_key: "{{k8s_api_token}}"        
+        api_version: operators.coreos.com/v1alpha1
+        kind: ClusterServiceVersion  
+        namespace: ibm-common-services 
+        name: ibm-model-train-classic-operator.v1.0.9
+        field_selectors:
+          - status.phase=Succeeded
+        wait: no
+      register: info                       
+      until: info.resources|length > 0
+      retries: 30
+      delay: 5        
+
+    - name: Install PostgreSql operator - step 1
+      shell: "rm -fr {{OFFLINEDIR}} && mkdir {{OFFLINEDIR}}"
+      register: output  
+
+    - debug: var=output
+
+
+
+    - name: Install PostgreSql operator - step 2
+      shell: "cloudctl case save --case https://github.com/IBM/cloud-pak/raw/master/repo/case/ibm-watson-discovery-4.0.2.tgz --outputdir {{OFFLINEDIR}}"
+      register: output 
+
+    - debug: var=output
+
+    - name: OC Login
+      shell: oc login --token={{k8s_api_token}} --server={{k8s_host}}
+
+    - name: Install PostgreSql operator - step 3
+      shell: "cloudctl case launch --case {{OFFLINEDIR}}/ibm-watson-discovery-4.0.2.tgz  --inventory discoveryOperators --action create-postgres-licensekey  --namespace cpd-instance"
+      register: output 
+
+    - debug: var=output
+
+   
+
+    - name: Install PostgreSql operator - step 4
+      shell: cloudctl case launch --case ${OFFLINEDIR}/ibm-watson-discovery-4.0.2.tgz  --inventory discoveryOperators  --action install-postgres-operator  --namespace cpd-instance  --args "--inputDir ${OFFLINEDIR}"
+
+
+    - name: Create custom resource for Watson Discovery
+      community.kubernetes.k8s:  
+        host: "{{k8s_host}}"
+        api_key: "{{k8s_api_token}}"          
+        state: present  
+        src: k8s/custom-resource-watson-discovery.yml     
+
+
+    - name: Finished the installation for Watson Discovery 
+      debug: var=ansible_date_time          

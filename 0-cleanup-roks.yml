@@ -1,0 +1,36 @@
+---
+  - name: "Clean up the ROKS environment"
+    hosts: localhost
+    connection: local 
+    vars_files:
+      - vars.yml    
+
+    tasks:
+    - name: Starting timestamp
+      debug: var=ansible_date_time.iso8601 
+
+    - name: Patch finalizers
+      community.kubernetes.k8s:
+        host: "{{k8s_host}}"
+        api_key: "{{k8s_api_token}}"   
+        state: absent      
+        src: cp4d/k8s/cleanup-patch-finalizers.yml 
+
+
+    - name: Delete cpd-instance
+      community.kubernetes.k8s:
+        host: "{{k8s_host}}"
+        api_key: "{{k8s_api_token}}"        
+        name: cpd-instance
+        kind: Namespace
+        state: absent 
+
+    - name: Delete ibm-common-services
+      community.kubernetes.k8s:
+        host: "{{k8s_host}}"
+        api_key: "{{k8s_api_token}}"        
+        name: ibm-common-services
+        kind: Namespace
+        state: absent   
+
+              

@@ -1,0 +1,4 @@
+---
+k8s_host: https://c114-e.us-south.containers.cloud.ibm.com:30818
+k8s_api_token: sha256~zcHDDZkCEaZ-f0Ib2QMkBH2iXDhl_E4aonmtI1FZohI
+entitlement_key: <your entitlement key>
